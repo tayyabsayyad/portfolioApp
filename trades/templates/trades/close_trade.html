@@ -1,0 +1,74 @@
+{# trades/templates/trades/close_trade.html #}
+{% extends "trades/base.html" %}
+{% block title %}Close {{ trade.ticker }}{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="row">
+    <div class="col-12 col-lg-8">
+      <div class="card-like mb-4">
+        <h1 class="h5 mb-3">Close Trade — {{ trade.ticker }}</h1>
+
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          <!-- sell_price -->
+          <div class="mb-3">
+            <label class="form-label">Sell Price</label>
+            {{ form.sell_price }}
+            {% if form.sell_price.errors %}
+              <div class="text-danger small">{{ form.sell_price.errors }}</div>
+            {% endif %}
+          </div>
+
+          <!-- sell_date -->
+          <div class="mb-3">
+            <label class="form-label">Sell Date</label>
+            {{ form.sell_date }}
+            {% if form.sell_date.errors %}
+              <div class="text-danger small">{{ form.sell_date.errors }}</div>
+            {% endif %}
+          </div>
+
+          <!-- exit_reason -->
+          <div class="mb-3">
+            <label class="form-label">Exit Reason</label>
+            {{ form.exit_reason }}
+            {% if form.exit_reason.errors %}
+              <div class="text-danger small">{{ form.exit_reason.errors }}</div>
+            {% endif %}
+          </div>
+
+          <!-- sell_notes -->
+          <div class="mb-3">
+            <label class="form-label">Sell Notes / Post-mortem</label>
+            {{ form.sell_notes }}
+            {% if form.sell_notes.errors %}
+              <div class="text-danger small">{{ form.sell_notes.errors }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Upload charts (still a file input handled manually) -->
+          <div class="mb-3">
+            <label class="form-label">Upload Sell Charts (optional)</label>
+            <input type="file" name="sell_charts" multiple class="form-control" />
+          </div>
+
+          <div class="d-grid">
+            <button type="submit" class="btn btn-danger btn-lg">Close Trade</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-4">
+      <div class="card-like">
+        <h6 class="mb-2">Buy Summary</h6>
+        <p class="small mb-1"><strong>Ticker:</strong> {{ trade.ticker }}</p>
+        <p class="small mb-1"><strong>Buy Date:</strong> {{ trade.buy_date }}</p>
+        <p class="small mb-1"><strong>Buy Price:</strong> {{ trade.buy_price }}</p>
+        <p class="small"><strong>Quantity:</strong> {{ trade.quantity }}</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

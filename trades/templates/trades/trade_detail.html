@@ -1,0 +1,111 @@
+{# trades/templates/trades/trade_detail.html #}
+{% extends "trades/base.html" %}
+{% block title %}{{ trade.ticker }} — Trade Detail{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div>
+      <h1 class="h5 mb-0">{{ trade.ticker }}</h1>
+      <div class="small text-muted">{{ trade.quantity }} @ {{ trade.buy_price }}</div>
+    </div>
+
+    <div class="text-end">
+      {% if not trade.is_closed %}
+        <a href="{% url 'close_trade' trade.id %}" class="btn btn-outline-warning btn-sm">Close Trade</a>
+      {% else %}
+        <span class="badge bg-success">Closed</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <!-- Left: buy details -->
+    <div class="col-12 col-lg-6">
+      <div class="card-like mb-3">
+        <h6 class="mb-2">Buy Details</h6>
+        <p class="small mb-1"><strong>Buy Date:</strong> {{ trade.buy_date }}</p>
+        <p class="small mb-1"><strong>Buy Price:</strong> {{ trade.buy_price }}</p>
+
+        <div class="mt-3">
+          <h6 class="small mb-2">Indicators (your notes)</h6>
+          <pre class="small text-dark" style="white-space:pre-wrap; background:#f8fafc; padding:0.6rem; border-radius:8px;">{{ trade.indicators_text }}</pre>
+          {% if trade.indicators_json %}
+            <div class="small text-muted mt-2">Structured JSON snapshot saved.</div>
+          {% endif %}
+        </div>
+
+        <div class="mt-3">
+          <h6 class="small mb-2">Buy Notes</h6>
+          <div class="small text-dark">{{ trade.buy_notes|linebreaksbr }}</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: charts & upload -->
+    <div class="col-12 col-lg-6">
+      <div class="card-like mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="mb-0">Charts</h6>
+          <small class="text-muted">{{ trade.charts.count }} uploaded</small>
+        </div>
+
+        {% if trade.charts.all %}
+          <div class="row g-2 mb-3">
+            {% for c in trade.charts.all %}
+              <div class="col-6">
+                <div class="border rounded overflow-hidden">
+                  <img src="{{ c.image.url }}" alt="{{ c.caption }}" class="chart-thumb d-block" />
+                  <div class="p-2 small text-muted">{{ c.caption }}</div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="small text-muted mb-3">No charts uploaded yet. Use the form below to add.</div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" class="mt-2">
+          {% csrf_token %}
+          <div class="mb-2">
+            <label class="form-label small">Upload Chart</label>
+            {{ chart_form.image }}
+            {% if chart_form.image.errors %}
+              <div class="text-danger small">{{ chart_form.image.errors }}</div>
+            {% endif %}
+          </div>
+          <div class="mb-2">
+            <input type="text" name="caption" placeholder="Caption (optional)" class="form-control form-control-sm" />
+          </div>
+          <input type="hidden" name="upload_chart" value="1" />
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-sm btn-outline-primary">Upload Chart</button>
+            <a href="{% url 'trade_list' %}" class="btn btn-sm btn-outline-secondary">Back to Trades</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if trade.is_closed %}
+    <div class="card-like mt-3">
+      <h6 class="mb-2">Sell / Exit</h6>
+      <p class="small mb-1"><strong>Sell Date:</strong> {{ trade.sell_date }}</p>
+      <p class="small mb-1"><strong>Sell Price:</strong> {{ trade.sell_price }}</p>
+      <p class="small mb-1"><strong>Exit Reason:</strong> {{ trade.exit_reason }}</p>
+
+      <div class="mt-2">
+        <h6 class="small mb-1">Sell Notes</h6>
+        <div class="small text-dark">{{ trade.sell_notes|linebreaksbr }}</div>
+      </div>
+
+      <div class="mt-3">
+        <strong>Realized P&amp;L:</strong>
+        <span class="{% if trade.realized_pnl and trade.realized_pnl > 0 %}text-success{% elif trade.realized_pnl and trade.realized_pnl < 0 %}text-danger{% else %}text-muted{% endif %}">
+          {{ trade.realized_pnl }}
+        </span>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

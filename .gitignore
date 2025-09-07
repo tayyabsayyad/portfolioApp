@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.manifest
+*.spec
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+*.env
+.env.*
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+/media/
+staticfiles/
+*.log
+
+# Django migrations (keep __init__.py, ignore generated migration files)
+*/migrations/[0-9][0-9][0-9][0-9]_*.py
+*/migrations/__pycache__/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# pytest / coverage
+.coverage
+htmlcov/
+*.cover
+*.py,cover
+.cache
+.pytest_cache/
+nosetests.xml
+coverage.xml
+
+# MyPy / Type checker
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Backup / temp
+*.bak
+*.swp
+*.swo
+*~

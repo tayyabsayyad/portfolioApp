@@ -1,0 +1,201 @@
+{# trades/templates/trades/rules_page.html #}
+{% extends "trades/base.html" %}
+{% block title %}Rules — StageTracker{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="row">
+    <div class="col-12 col-lg-8">
+
+      <!-- Top: checklist display + actions -->
+      <div class="card-like mb-4">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <h4 class="m-0">Stage Analysis — Quick Checklist</h4>
+            <small class="text-muted">Rendered from your saved rules. (Local checks only)</small>
+          </div>
+
+          <div class="d-flex gap-2">
+            <!-- Open edit modal -->
+            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#editRulesModal">Edit</button>
+            <!-- Copy checklist to clipboard -->
+            <button id="copyChecklistBtn" class="btn btn-sm btn-outline-secondary">Copy</button>
+          </div>
+        </div>
+
+        <hr class="my-2">
+
+        <!-- Checklist rendering area -->
+        <div id="rulesChecklist" class="mb-2" style="max-height:500px; overflow:auto;">
+          <!-- JS will populate checklist here -->
+          <div class="text-muted small">Loading checklist…</div>
+        </div>
+
+        <!-- Hidden source for JS to read (raw lines, not JS-escaped) -->
+        <textarea id="rulesSource" class="d-none" aria-hidden="true">{% if rules.content %}{{ rules.content }}{% endif %}</textarea>
+      </div>
+
+      <div class="card-like">
+        <h6 class="mb-2">Quick access</h6>
+        <p class="small text-muted mb-3">Keep this page open when reviewing potential buys or when writing your checklist into trades.</p>
+        <div class="d-flex gap-2">
+          <a href="{% url 'add_trade' %}" class="btn btn-outline-secondary btn-sm">Add Trade</a>
+          <a href="{% url 'trade_list' %}" class="btn btn-outline-secondary btn-sm">My Trades</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column: tips only -->
+    <div class="col-12 col-lg-4">
+      <div class="card-like mb-4">
+        <h6 class="mb-2">Tips</h6>
+        <ul class="small mb-0">
+          <li>Prefix lines with the weekly date for reference: <code>2025-09-06 — Above 30w EMA: Yes</code>.</li>
+          <li>Use one checklist item per line — short is better for quick scanning.</li>
+          <li>Use <code>[x]</code> at the start of a line to save an item as checked (optional).</li>
+        </ul>
+      </div>
+
+      <div class="card-like">
+        <h6 class="mb-2">Why modal-only?</h6>
+        <p class="small text-muted mb-0">A single modal keeps the checklist focused and avoids duplicate editing UIs. Save changes in the modal and the checklist will reload when the page refreshes.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal (Bootstrap) -->
+<div class="modal fade" id="editRulesModal" tabindex="-1" aria-labelledby="editRulesModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <form method="post" id="modalRulesForm" novalidate>
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title" id="editRulesModalLabel">Edit Rules</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Title</label>
+            <input id="modalTitle" type="text" name="title" value="{{ rules.title }}" class="form-control" />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Content (markdown or plain text)</label>
+            <textarea id="modalContent" name="content" rows="14" class="form-control">{% if rules.content %}{{ rules.content }}{% endif %}</textarea>
+          </div>
+          <div class="form-text small text-muted">One checklist item per line. Use <code>[x]</code> to save an item as checked.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Rules</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Styling: larger checkboxes and highlighted labels -->
+<style>
+  /* bigger checkbox + label for prominence */
+  #rulesChecklist .form-check-input {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-top: .15rem;
+  }
+  #rulesChecklist .form-check-label {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #0c0440; /* deep primary blue for emphasis */
+    margin-left: .5rem;
+  }
+  /* secondary detail for each item (if any) */
+  #rulesChecklist .rule-subtext {
+    display:block;
+    font-weight:300;
+    font-size:.800rem;
+    color: #8d9199;
+    margin-left: calc(1.25rem + 0.8rem);
+  }
+</style>
+
+<!-- JS: render checklist and copy/edit handling (supports [x]/[ ] markers) -->
+<script>
+(function () {
+  // read raw text from hidden textarea (contains real newlines)
+  const srcEl = document.getElementById('rulesSource');
+
+  function getRawText() {
+    return srcEl ? srcEl.value : '';
+  }
+
+  // render checklist into the top card
+  function renderChecklist(text) {
+    const container = document.getElementById('rulesChecklist');
+    container.innerHTML = '';
+    if (!text || !text.trim()) {
+      container.innerHTML = '<div class="text-muted small">No checklist saved. Click Edit to add your Stage rules.</div>';
+      return;
+    }
+
+    // split into lines, ignore empty lines
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+
+    // create a scrollable list with checkboxes
+    const list = document.createElement('div');
+    list.style.maxHeight = '500px';
+    list.style.overflowY = 'auto';
+
+    lines.forEach((line, idx) => {
+      // detect [x], [X], or [ ] prefixes (markdown style)
+      const m = line.match(/^\[(x|X| )\]\s*(.*)$/);
+      const checked = m ? (m[1].toLowerCase() === 'x') : false;
+      const textPart = m ? m[2] : line; // if not markdown checkbox, use full line
+
+      const id = 'rule_chk_' + idx;
+      const row = document.createElement('div');
+      row.className = 'form-check mb-2';
+      row.innerHTML = `<input class="form-check-input" type="checkbox" ${checked ? 'checked' : ''} id="${id}">
+                       <label class="form-check-label" for="${id}">${textPart}</label>`;
+      list.appendChild(row);
+    });
+
+    container.appendChild(list);
+  }
+
+  // initial render
+  renderChecklist(getRawText());
+
+  // copy to clipboard
+  document.getElementById('copyChecklistBtn').addEventListener('click', async () => {
+    try {
+      const textToCopy = getRawText() || document.getElementById('modalContent').value || '';
+      await navigator.clipboard.writeText(textToCopy);
+      const btn = document.getElementById('copyChecklistBtn');
+      const orig = btn.innerHTML;
+      btn.innerHTML = 'Copied ✓';
+      setTimeout(() => btn.innerHTML = orig, 1200);
+    } catch (e) {
+      alert('Copy failed — please select & copy manually.');
+    }
+  });
+
+  // When modal opens, ensure modal textarea reflects latest content
+  const editModalEl = document.getElementById('editRulesModal');
+  editModalEl.addEventListener('show.bs.modal', function () {
+    const contentVal = getRawText();
+    document.getElementById('modalContent').value = contentVal;
+    const titleEl = document.querySelector('input[name="title"]');
+    if (titleEl) {
+      document.getElementById('modalTitle').value = titleEl.value || '{{ rules.title|default:"" }}';
+    }
+  });
+
+  // When modal form submits, let the server handle saving via POST.
+  // After POST the page will reload and the checklist will reflect saved text.
+  // But to support optimistic UI update without reload, we could:
+  // - intercept the modal form submit and POST via fetch, then re-render checklist on success.
+  // For simplicity we submit normally so CSRF and redirect handling stays server-side.
+
+})();
+</script>
+{% endblock %}

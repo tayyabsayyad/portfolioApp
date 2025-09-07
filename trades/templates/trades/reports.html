@@ -1,0 +1,133 @@
+{# trades/templates/trades/reports.html #}
+{% extends "trades/base.html" %}
+{% block title %}Reports — StageTracker{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="h5 m-0">Reports</h1>
+    <a href="{% url 'export_closed_csv' %}" class="btn btn-outline-secondary btn-sm">Export CSV</a>
+  </div>
+
+  <!-- Top summary: closed / wins / win rate -->
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+      <div class="card-like text-center">
+        <div class="small text-muted">Closed Trades</div>
+        <div class="h4 mt-2">{{ total_closed }}</div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="card-like text-center">
+        <div class="small text-muted">Wins</div>
+        <div class="h4 mt-2">{{ wins }}</div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="card-like text-center">
+        <div class="small text-muted">Win Rate</div>
+        <div class="h4 mt-2">
+          {% if win_rate is not None %}
+            {{ win_rate|floatformat:2 }}%
+          {% else %}
+            &mdash;
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Secondary summary: avg win / avg loss + total realized -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+      <div class="card-like text-center">
+        <div class="small text-muted">Average Win</div>
+        <div class="h5 mt-2">
+          {% if avg_win is not None %}
+            <span class="text-success">{{ avg_win|floatformat:2 }}</span>
+          {% else %}
+            &mdash;
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="card-like text-center">
+        <div class="small text-muted">Average Loss</div>
+        <div class="h5 mt-2">
+          {% if avg_loss is not None %}
+            <span class="text-danger">{{ avg_loss|floatformat:2 }}</span>
+          {% else %}
+            &mdash;
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="card-like text-center">
+        <div class="small text-muted">Total Realized P&L</div>
+        <div class="h5 mt-2">{{ total_realized|floatformat:2 }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Closed trades table -->
+  <div class="card-like">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h6 class="m-0">Closed Trades</h6>
+      <div class="small text-muted">Count: {{ total_closed }}</div>
+    </div>
+
+    {% if closed_trades %}
+      <div class="table-responsive">
+        <table class="table table-sm table-hover align-middle">
+          <thead class="table-light text-muted small">
+            <tr>
+              <th>Ticker</th>
+              <th>Buy</th>
+              <th>Sell</th>
+              <th class="text-end">P&L</th>
+              <th>Exit</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in closed_trades %}
+              {% with pnl=t.realized_pnl %}
+                <tr>
+                  <td>
+                    <a href="{% url 'trade_detail' t.id %}" class="fw-semibold text-decoration-none">
+                      {{ t.ticker }}
+                    </a>
+                  </td>
+                  <td class="small text-muted">{{ t.buy_price }} • {{ t.buy_date }}</td>
+                  <td class="small text-muted">{{ t.sell_price }} • {{ t.sell_date }}</td>
+                  <td class="text-end">
+                    {% if pnl is not None %}
+                      {% if pnl > 0 %}
+                        <span class="text-success">{{ pnl|floatformat:2 }}</span>
+                      {% elif pnl < 0 %}
+                        <span class="text-danger">{{ pnl|floatformat:2 }}</span>
+                      {% else %}
+                        <span class="text-muted">{{ pnl|floatformat:2 }}</span>
+                      {% endif %}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="small text-muted">{{ t.exit_reason }}</td>
+                </tr>
+              {% endwith %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="text-muted small mb-0">No closed trades yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

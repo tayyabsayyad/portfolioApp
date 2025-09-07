@@ -1,0 +1,117 @@
+{# trades/templates/trades/trade_list.html #}
+{% extends "trades/base.html" %}
+{% block title %}Trades — StageTracker{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h5 m-0">My Trades</h1>
+    <a href="{% url 'add_trade' %}" class="btn btn-primary btn-sm">Add Trade</a>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-12 col-lg-4">
+      <div class="card-like">
+        <h6 class="mb-2">Open Positions</h6>
+        {% if open_trades %}
+          <div class="list-group">
+            {% for t in open_trades %}
+              <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  <a href="{% url 'trade_detail' t.id %}" class="fw-semibold text-decoration-none">{{ t.ticker }}</a>
+                  <div class="small text-muted">{{ t.quantity }} @ {{ t.buy_price }} • {{ t.buy_date }}</div>
+                </div>
+                <div class="text-end">
+                  <a href="{% url 'close_trade' t.id %}" class="btn btn-sm btn-outline-warning">Close</a>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-muted small">No open positions.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-8">
+      <div class="card-like mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="m-0">Closed Trades</h6>
+          <div>
+            <a href="{% url 'export_closed_csv' %}" class="btn btn-outline-secondary btn-sm">Export CSV</a>
+          </div>
+        </div>
+
+        <!-- Filter form -->
+        <form method="get" class="row g-2 align-items-end mb-3">
+          <div class="col-12 col-md-4">
+            <label class="form-label small">Ticker</label>
+            <input type="text" name="q" value="{{ filter_q }}" class="form-control form-control-sm" placeholder="e.g. AAPL" />
+          </div>
+
+          <div class="col-6 col-md-3">
+            <label class="form-label small">Start (sell date)</label>
+            <input type="date" name="start_date" value="{{ filter_start_date }}" class="form-control form-control-sm" />
+          </div>
+
+          <div class="col-6 col-md-3">
+            <label class="form-label small">End (sell date)</label>
+            <input type="date" name="end_date" value="{{ filter_end_date }}" class="form-control form-control-sm" />
+          </div>
+
+          <div class="col-6 col-md-2">
+            <label class="form-label small">Exit reason</label>
+            <select name="exit_reason" class="form-select form-select-sm">
+              <option value="">Any</option>
+              <option value="SL" {% if filter_exit_reason == 'SL' %}selected{% endif %}>Stop Loss</option>
+              <option value="RES" {% if filter_exit_reason == 'RES' %}selected{% endif %}>Resistance</option>
+              <option value="EMA" {% if filter_exit_reason == 'EMA' %}selected{% endif %}>EMA slope</option>
+              <option value="SECT" {% if filter_exit_reason == 'SECT' %}selected{% endif %}>Sector weak</option>
+              <option value="MAN" {% if filter_exit_reason == 'MAN' %}selected{% endif %}>Manual</option>
+            </select>
+          </div>
+
+          <div class="col-12 col-md-12 text-end">
+            <button type="submit" class="btn btn-sm btn-primary">Apply</button>
+            <a href="{% url 'trade_list' %}" class="btn btn-sm btn-outline-secondary">Reset</a>
+          </div>
+        </form>
+
+        <!-- Paginated closed trades -->
+        {% if closed_trades %}
+          <div class="list-group">
+            {% for t in closed_trades %}
+              <div class="list-group-item d-flex justify-content-between align-items-center">
+                <div>
+                  <a href="{% url 'trade_detail' t.id %}" class="fw-semibold text-decoration-none">{{ t.ticker }}</a>
+                  <div class="small text-muted">{{ t.buy_date }} → {{ t.sell_date }} • P&L: {{ t.realized_pnl }}</div>
+                </div>
+                <div class="small text-muted text-end">{{ t.exit_reason }}</div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <!-- pagination controls -->
+          <nav aria-label="Closed trades pages" class="mt-3">
+            <ul class="pagination pagination-sm">
+              {# helper to preserve other GET params when changing page #}
+              {% for num in closed_trades.paginator.page_range %}
+                {% if closed_trades.number == num %}
+                  <li class="page-item active" aria-current="page"><span class="page-link">{{ num }}</span></li>
+                {% else %}
+                  <li class="page-item">
+                    <a class="page-link" href="?{% if filter_q %}q={{ filter_q }}&amp;{% endif %}{% if filter_start_date %}start_date={{ filter_start_date }}&amp;{% endif %}{% if filter_end_date %}end_date={{ filter_end_date }}&amp;{% endif %}{% if filter_exit_reason %}exit_reason={{ filter_exit_reason }}&amp;{% endif %}page={{ num }}">{{ num }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </nav>
+
+        {% else %}
+          <div class="text-muted small">No closed trades found.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
