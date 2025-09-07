@@ -29,8 +29,6 @@ The dashboard is your home page after logging in.
   - Last price and market value  
   - Unrealized P&L (%)  
 
-👉 Click **Details** to open the full trade record.
-
 ---
 
 ## ➕ Add a Trade
