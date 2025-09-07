@@ -19,7 +19,7 @@ Features:
 
 ### 1. Clone & install
 ```bash
-git clone https://github.com/yourusername/stage-portfolio.git
+git clone https://github.com/tayyabsayyad/portfolioApp.git
 cd stage-portfolio
 python -m venv .venv
 source .venv/bin/activate
@@ -73,7 +73,7 @@ trades/
 📘 Documentation
 📘 [User Guide](./USER_GUIDE.md)
 
-📸 Screenshots
+### 📸 Screenshots
 
 Dashboard view: ![Alt text](./docs/screenshots/dashboard.png)
 
@@ -84,10 +84,11 @@ Rules page: ![Alt text](./docs/screenshots/rules.png)
 Add trade form: ![Alt text](./docs/screenshots/buy.png)
 
 🔐 Authentication
-	-	Root (/) redirects to login.
-	-	All main views require login (@login_required).
-	-	After login → dashboard.
-	-	Logout → back to login.
+
+-	Root (/) redirects to login.
+-	All main views require login (@login_required).
+-	After login → dashboard.
+-	Logout → back to login.
 
 ### 📊 Core workflows
 
