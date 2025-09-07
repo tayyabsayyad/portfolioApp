@@ -75,13 +75,13 @@ trades/
 
 📸 Screenshots
 
-Dashboard view:
+Dashboard view: ![Alt text](./docs/screenshots/dashboard.png)
 
-Trades list:
+Trades list: ![Alt text](./docs/screenshots/trades.png)
 
-Rules page:
+Rules page: ![Alt text](./docs/screenshots/rules.png)
 
-Add trade form:
+Add trade form: ![Alt text](./docs/screenshots/buy.png)
 
 🔐 Authentication
 	-	Root (/) redirects to login.
