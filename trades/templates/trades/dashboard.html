@@ -9,7 +9,7 @@
     <a href="{% url 'trade_list' %}" class="small text-muted">View trades</a>
   </div>
 
-  <!-- summary cards -->
+  <!-- Summary cards -->
   <div class="row g-3 mb-4">
     <div class="col-12 col-md-3">
       <div class="card-like text-center">
@@ -17,7 +17,6 @@
         <div id="total_value" class="h5 mt-2">—</div>
       </div>
     </div>
-
     <div class="col-12 col-md-3">
       <div class="card-like text-center">
         <div class="small text-muted">Total Gain</div>
@@ -25,14 +24,12 @@
         <div id="total_gain_pct" class="small text-muted"></div>
       </div>
     </div>
-
     <div class="col-12 col-md-3">
       <div class="card-like text-center">
         <div class="small text-muted">Unrealized P&L</div>
         <div id="unrealized" class="h5 mt-2">—</div>
       </div>
     </div>
-
     <div class="col-12 col-md-3">
       <div class="card-like text-center">
         <div class="small text-muted">Open Positions</div>
@@ -41,13 +38,11 @@
     </div>
   </div>
 
-  <!-- positions table with sortable headers -->
+  <!-- Positions Table -->
   <div class="card-like mb-4">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <h6 class="m-0">Positions</h6>
-      <div>
-        <button id="refreshBtn" class="btn btn-sm btn-outline-secondary">Refresh</button>
-      </div>
+      <button id="refreshBtn" class="btn btn-sm btn-outline-secondary">Refresh</button>
     </div>
 
     <div class="table-responsive">
@@ -56,16 +51,17 @@
           <tr>
             <th scope="col">Ticker</th>
             <th scope="col" class="text-end">Qty</th>
-            <th scope="col" class="text-end sortable" data-sort-key="cost">Cost <span class="sort-indicator"></span></th>
-            <th scope="col" class="text-end sortable" data-sort-key="last_price">Last <span class="sort-indicator"></span></th>
-            <th scope="col" class="text-end sortable" data-sort-key="market_value">Market Value <span class="sort-indicator"></span></th>
-            <th scope="col" class="text-end sortable" data-sort-key="unrealized_pnl">P&amp;L <span class="sort-indicator"></span></th>
-            <th scope="col" class="text-end sortable" data-sort-key="pnl_pct">P&amp;L % <span class="sort-indicator"></span></th>
-            <th scope="col" class="text-end sortable" data-sort-key="days_held">Days Held <span class="sort-indicator"></span></th>
+            <th scope="col" class="text-end">Buy Avg Price</th>
+            <th scope="col" class="text-end">Total Cost</th>
+            <th scope="col" class="text-end">LTP</th>
+            <th scope="col" class="text-end">Market Value</th>
+            <th scope="col" class="text-end">P&L</th>
+            <th scope="col" class="text-end">P&L %</th>
+            <th scope="col" class="text-end">Days Held</th>
           </tr>
         </thead>
         <tbody id="positions_table_body">
-          <tr><td colspan="8" class="small text-muted">Loading positions…</td></tr>
+          <tr><td colspan="9" class="small text-muted">Loading positions…</td></tr>
         </tbody>
       </table>
     </div>
@@ -73,7 +69,7 @@
 </div>
 
 <script>
-  // formatting helpers
+  // helpers
   function formatNumber(v) {
     if (v === null || v === undefined) return '—';
     return Number(v).toLocaleString(undefined, {maximumFractionDigits:2});
@@ -85,115 +81,26 @@
     if (val < 0) return 'text-danger';
     return 'text-muted';
   }
-
-  // compute days held: if sell_date present (closed) use sell_date-buy_date else today - buy_date
-  function computeDaysHeld(buy_iso, sell_iso) {
-    if (!buy_iso) return null;
-    try {
-      const buy = new Date(buy_iso);
-      const end = sell_iso ? new Date(sell_iso) : new Date(); // today
-      // normalize to UTC midnight to avoid timezone issues
-      const diffMs = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate()) - Date.UTC(buy.getFullYear(), buy.getMonth(), buy.getDate());
-      const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      return isFinite(days) ? days : null;
-    } catch(e) {
-      return null;
-    }
+  function computeDaysHeld(buy_iso) {
+    if (!buy_iso) return '—';
+    const buy = new Date(buy_iso);
+    const now = new Date();
+    const diff = now - buy;
+    return Math.floor(diff / (1000 * 60 * 60 * 24));
   }
 
-  // state for sorting: key and direction
-  let currentSort = { key: null, asc: false };
-
-  // attach click handlers to headers marked .sortable
-  function setupSorting() {
-    document.querySelectorAll('th.sortable').forEach(th => {
-      th.style.cursor = 'pointer';
-      th.addEventListener('click', () => {
-        const key = th.dataset.sortKey;
-        if (!key) return;
-        if (currentSort.key === key) {
-          currentSort.asc = !currentSort.asc; // toggle
-        } else {
-          currentSort.key = key;
-          currentSort.asc = true; // default ascending on new column
-        }
-        // update indicators
-        document.querySelectorAll('th.sortable .sort-indicator').forEach(el => el.textContent = '');
-        th.querySelector('.sort-indicator').textContent = currentSort.asc ? ' ▲' : ' ▼';
-        // re-render using the latest cachedPositions if available
-        if (window.cachedPositions) {
-          renderPositionsTable(window.cachedPositions);
-        }
-      });
-    });
-  }
-
-  // sort function: sorts array of position objects in-place per currentSort
-  function sortPositionsArray(arr) {
-    if (!currentSort.key) return arr;
-    const key = currentSort.key;
-    const asc = currentSort.asc ? 1 : -1;
-
-    arr.sort((a, b) => {
-      // support nested keys (not needed now)
-      const va = (a[key] === null || a[key] === undefined) ? -Infinity : a[key];
-      const vb = (b[key] === null || b[key] === undefined) ? -Infinity : b[key];
-
-      // if key is days_held, ensure numeric
-      if (key === 'days_held') {
-        return (Number(va) - Number(vb)) * asc;
-      }
-
-      // attempt numeric compare if both numeric
-      const na = Number(va);
-      const nb = Number(vb);
-      if (!isNaN(na) && !isNaN(nb)) {
-        return (na - nb) * asc;
-      }
-
-      // fallback string compare
-      const sa = String(va).toLowerCase();
-      const sb = String(vb).toLowerCase();
-      if (sa < sb) return -1 * asc;
-      if (sa > sb) return 1 * asc;
-      return 0;
-    });
-
-    return arr;
-  }
-
-  // render positions table given positions array (positions expected from API)
-  function renderPositionsTable(positions) {
-    // enrich each position with computed days_held
-    const enriched = positions.map(p => {
-      const days = computeDaysHeld(p.buy_date, p.sell_date || null);
-      // unify numeric values
-      return Object.assign({}, p, { days_held: days });
-    });
-
-    // sort if needed
-    sortPositionsArray(enriched);
-
-    // cache for re-sorting
-    window.cachedPositions = enriched;
-
+  // render table
+  function renderPositions(positions) {
     const tbody = document.getElementById('positions_table_body');
     tbody.innerHTML = '';
-
-    if (enriched.length === 0) {
-      const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="8" class="small text-muted">No open positions</td>';
-      tbody.appendChild(tr);
+    if (!positions || positions.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="small text-muted">No open positions</td></tr>';
       return;
     }
 
-    enriched.forEach(p => {
-      const pnl = (p.unrealized_pnl !== null && p.unrealized_pnl !== undefined) ? p.unrealized_pnl : null;
-      const pnl_pct = (p.pnl_pct !== null && p.pnl_pct !== undefined) ? p.pnl_pct : null;
-
-      const pnlCls = colorClassForNumber(pnl);
-      const pctCls = colorClassForNumber(pnl_pct);
-
+    positions.forEach(p => {
+      const pnlCls = colorClassForNumber(p.unrealized_pnl);
+      const pctCls = colorClassForNumber(p.pnl_pct);
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>
@@ -201,68 +108,50 @@
           <div class="small text-muted"><a href="/trades/${p.id}/" class="text-decoration-none small">Details</a></div>
         </td>
         <td class="text-end small">${formatNumber(p.quantity)}</td>
+        <td class="text-end small">${formatNumber(p.buy_price)}</td>
         <td class="text-end small">${formatNumber(p.cost)}</td>
         <td class="text-end small">${formatNumber(p.last_price)}</td>
         <td class="text-end small">${formatNumber(p.market_value)}</td>
-        <td class="text-end ${pnlCls} small">${pnl !== null ? formatNumber(pnl) : '—'}</td>
-        <td class="text-end ${pctCls} small">${pnl_pct !== null ? (Number(pnl_pct).toFixed(2) + '%') : '—'}</td>
-        <td class="text-end small">${p.days_held !== null ? p.days_held : '—'}</td>
+        <td class="text-end ${pnlCls} small">${formatNumber(p.unrealized_pnl)}</td>
+        <td class="text-end ${pctCls} small">${p.pnl_pct !== null ? p.pnl_pct.toFixed(2) + '%' : '—'}</td>
+        <td class="text-end small">${computeDaysHeld(p.buy_date)}</td>
       `;
       tbody.appendChild(tr);
     });
   }
 
-  // fetch positions from API and update summary + table
-  async function fetchPositions() {
+  // fetch data
+  async function fetchPortfolio() {
     try {
       const res = await fetch("{% url 'portfolio_value_api' %}");
       const data = await res.json();
       const pos = data.positions || [];
 
-      // update summary cards
+      // summary
       document.getElementById('total_value').textContent = formatNumber(data.total_value);
       document.getElementById('open_count').textContent = pos.length;
 
-      // total gain (colored)
-      const tgEl = document.getElementById('total_gain');
-      const tgPctEl = document.getElementById('total_gain_pct');
-      const total_gain = data.total_gain;
-      const total_gain_pct = data.total_gain_pct;
-      tgEl.textContent = formatNumber(total_gain);
-      tgEl.className = colorClassForNumber(total_gain) + ' h5 mt-2';
-      if (total_gain_pct !== null && total_gain_pct !== undefined) {
-        tgPctEl.textContent = (Number(total_gain_pct).toFixed(2) + '%');
-        tgPctEl.className = colorClassForNumber(total_gain_pct);
-      } else {
-        tgPctEl.textContent = '';
-        tgPctEl.className = 'small text-muted';
-      }
+      const tg = document.getElementById('total_gain');
+      const tgPct = document.getElementById('total_gain_pct');
+      tg.textContent = formatNumber(data.total_gain);
+      tg.className = colorClassForNumber(data.total_gain) + ' h5 mt-2';
+      tgPct.textContent = data.total_gain_pct ? data.total_gain_pct.toFixed(2) + '%' : '';
+      tgPct.className = colorClassForNumber(data.total_gain_pct);
 
-      // unrealized
       const unrealEl = document.getElementById('unrealized');
       unrealEl.textContent = formatNumber(data.total_unrealized);
       unrealEl.className = colorClassForNumber(data.total_unrealized) + ' h5 mt-2';
 
-      // render the table
-      renderPositionsTable(pos);
-
-    } catch (err) {
-      console.error(err);
-      const tbody = document.getElementById('positions_table_body');
-      tbody.innerHTML = '<tr><td colspan="8" class="text-danger small">Error loading positions — try refresh.</td></tr>';
+      renderPositions(pos);
+    } catch (e) {
+      console.error(e);
+      document.getElementById('positions_table_body').innerHTML =
+        '<tr><td colspan="9" class="text-danger small">Error loading positions — try again.</td></tr>';
     }
   }
 
-  // initial setup: sorting handlers then load
-  setupSorting();
-  fetchPositions();
-
-  // poll every 45s
-  const pollInterval = setInterval(fetchPositions, 45000);
-
-  // manual refresh
-  document.getElementById('refreshBtn').addEventListener('click', () => {
-    fetchPositions();
-  });
+  fetchPortfolio();
+  document.getElementById('refreshBtn').addEventListener('click', fetchPortfolio);
+  setInterval(fetchPortfolio, 45000);
 </script>
 {% endblock %}

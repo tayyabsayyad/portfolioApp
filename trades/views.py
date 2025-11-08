@@ -191,16 +191,20 @@ def dashboard(request):
 def portfolio_value_api(request):
     """
     Returns JSON with:
-      - positions: list of open positions with last_price, value, cost, unrealized_pnl, pnl_pct
-      - total_value: sum of position market values
-      - total_cost: sum of position costs (buy_price * qty)
-      - total_unrealized: sum of unrealized pnl across positions (market - cost)
-      - total_gain: same as total_unrealized (for open positions), included for clarity
-      - total_gain_pct: percent gain vs total_cost (or null if no cost)
+      - positions: list of tickers aggregated by average buy price
+      - total_value, total_cost, total_unrealized, total_gain, total_gain_pct
     """
     trades = Trade.objects.filter(user=request.user, is_closed=False)
-    tickers = list({t.ticker.upper() for t in trades})
 
+    # Group open trades by ticker (case-insensitive)
+    from collections import defaultdict
+    ticker_groups = defaultdict(list)
+    for tr in trades:
+        ticker_groups[tr.ticker.upper()].append(tr)
+
+    tickers = list(ticker_groups.keys())
+
+    # Fetch last prices
     prices = {}
     if 'yf' in globals() and yf and tickers:
         for t in tickers:
@@ -214,9 +218,7 @@ def portfolio_value_api(request):
                     hist = tk.history(period='1d', interval='1m', progress=False)
                     if not hist.empty:
                         last = float(hist['Close'].iloc[-1])
-                # ensure numeric
-                prices[t] = float(last) if last is not None and not (
-                            isinstance(last, float) and math.isnan(last)) else None
+                prices[t] = float(last) if last is not None else None
             except Exception:
                 prices[t] = None
     else:
@@ -228,81 +230,61 @@ def portfolio_value_api(request):
     total_cost = 0.0
     total_unrealized = 0.0
 
-    for tr in trades:
-        buy_price = float(tr.buy_price)
-        qty = float(tr.quantity)
-        cost = buy_price * qty
-        last = prices.get(tr.ticker.upper(), None)
-        market_value = (last * qty) if last is not None else 0.0
-        unrealized = (last - buy_price) * qty if last is not None else None
+    # --- aggregate by ticker ---
+    for ticker, group in ticker_groups.items():
+        total_qty = sum(float(t.quantity) for t in group)
+        total_buy_cost = sum(float(t.quantity) * float(t.buy_price) for t in group)
+        avg_buy_price = total_buy_cost / total_qty if total_qty else 0
 
-        # accumulate totals (treat missing last as 0)
+        last = prices.get(ticker, None)
+        market_value = (last * total_qty) if last is not None else 0.0
+        unrealized = (last - avg_buy_price) * total_qty if last is not None else None
+
         total_value += market_value
-        total_cost += cost
+        total_cost += total_buy_cost
         if unrealized is not None:
-            total_unrealized += float(unrealized)
+            total_unrealized += unrealized
 
-        # percent unrealized vs cost (guard divide by zero)
         pnl_pct = None
-        try:
-            if unrealized is not None and cost != 0:
-                pnl_pct = (unrealized / cost) * 100
-        except Exception:
-            pnl_pct = None
+        if unrealized is not None and total_buy_cost:
+            pnl_pct = (unrealized / total_buy_cost) * 100
+
+        # oldest buy date (for “days held” display)
+        buy_dates = [t.buy_date for t in group if t.buy_date]
+        oldest_buy = min(buy_dates).isoformat() if buy_dates else None
 
         positions.append({
-            'id': tr.id,
-            'ticker': tr.ticker,
-            'quantity': qty,
-            'buy_price': buy_price,
-            'cost': cost,
-            'last_price': last,
-            'market_value': market_value,
-            'unrealized_pnl': unrealized,
-            'pnl_pct': pnl_pct,
-            'buy_date': tr.buy_date.isoformat()
+            'id': group[0].id,
+            'ticker': ticker,
+            'quantity': round(total_qty, 2),
+            'buy_price': round(avg_buy_price, 2),
+            'cost': round(total_buy_cost, 2),
+            'last_price': round(last, 2) if last else None,
+            'market_value': round(market_value, 2),
+            'unrealized_pnl': round(unrealized, 2) if unrealized else None,
+            'pnl_pct': round(pnl_pct, 2) if pnl_pct else None,
+            'buy_date': oldest_buy,
         })
 
-    total_gain = total_unrealized  # for open positions, unrealized sum is the total gain
-    total_gain_pct = None
-    if total_cost:
-        try:
-            total_gain_pct = (total_gain / total_cost) * 100
-        except Exception:
-            total_gain_pct = None
+    total_gain = total_unrealized
+    total_gain_pct = (total_gain / total_cost * 100) if total_cost else None
 
-    # Round numbers for neatness (or leave raw)
     def maybe_round(x):
         try:
-            return None if x is None else round(float(x), 4) if abs(x) < 1 else round(float(x), 2)
+            return None if x is None else round(float(x), 2)
         except Exception:
             return x
 
-    resp_positions = []
-    for p in positions:
-        resp_positions.append({
-            'id': p['id'],
-            'ticker': p['ticker'],
-            'quantity': p['quantity'],
-            'buy_price': maybe_round(p['buy_price']),
-            'cost': maybe_round(p['cost']),
-            'last_price': maybe_round(p['last_price']),
-            'market_value': maybe_round(p['market_value']),
-            'unrealized_pnl': maybe_round(p['unrealized_pnl']),
-            'pnl_pct': maybe_round(p['pnl_pct']),
-            'buy_date': p['buy_date'],
-        })
-
     data = {
-        'positions': resp_positions,
+        'positions': positions,
         'total_value': maybe_round(total_value),
         'total_cost': maybe_round(total_cost),
         'total_unrealized': maybe_round(total_unrealized),
         'total_gain': maybe_round(total_gain),
         'total_gain_pct': maybe_round(total_gain_pct),
     }
-    return JsonResponse(data)
 
+    return JsonResponse(data)
 
 @login_required
 def reports(request):
